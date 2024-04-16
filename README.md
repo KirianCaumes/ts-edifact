@@ -4,9 +4,9 @@
 
 # ts-edifact
 
-`ts-edifact` is an *Edifact* parsing library written in typescript. This implementation was initially based on[node-edifact](https://github.com/tdecaluwe/node-edifact) but has changed a bit since the start of the project. It now is able to build a full object tree based on the general message structure defined in the Edifact documentation and update the tokenizer with the the appropriate charset, which was defined in the `UNB` segment.
+`ts-edifact` is an *Edifact* parsing library written in typescript. This implementation was initially based on [node-edifact](https://github.com/tdecaluwe/node-edifact) but has changed a bit since the start of the project. It now is able to build a full object tree based on the general message structure defined in the Edifact documentation and update the tokenizer with the the appropriate charset, which was defined in the `UNB` segment.
 
-By default `ts-edifact` ships with a selection of `D:01B` message structure definitions as well as their respective segment and element definition files. For convenience a parser was added recently to generate such definitions from the [UNECE](https://www.unece.org/) Web page. Plans to generate these definition files from the [Edifact Directory](https://www.unece.org/tradewelcome/un-centre-for-trade-facilitation-and-e-business-uncefact/outputs/standards/unedifact/directories/download.html) exist, though due to time limitations this feature wasn't added yet.
+By default `ts-edifact` ships with a selection of `D:01B` message structure definitions as well as their respective segment and element definition files. For convenience a parser was added recently to generate such definitions from the [UNECE](https://unece.org/) Web page. Plans to generate these definition files from the [Edifact Directory](https://unece.org/tradewelcome/un-centre-for-trade-facilitation-and-e-business-uncefact/outputs/standards/unedifact/directories/download.html) exist, though due to time limitations this feature wasn't added yet.
 
 Currently supported functionality:
 
@@ -42,18 +42,18 @@ Changing these things, unfortunately, takes a bit time of which I'm currently no
 This example parses a document and translates it to a javascript array `result` containing segments. Each segment is an object containing a `name` and an `elements` array. An element is an array of components.
 
 ```typescript
-import { Parser, Validator, ResultType } from 'ts-edifact';
+import { Parser, Validator, ResultType, Configuration, ValidatorImpl } from 'ts-edifact';
 
-const enc: string = ...;
-const doc: string = ...;
+const enc: string = "...";
+const doc: string = "...";
 
 const parser: Parser = new Parser(new Configuration({ validator: new ValidatorImpl() }));
 
 // Provide some segment and element definitions.
-parser.configuration.validator.define(...);
+// parser.configuration.validator.define({...});
 
 // Parsed segments will be collected in the result array.
-let result: ResultType = [];
+let result: ResultType[] = [];
 let elements: string[][];
 let components: string[];
 
@@ -61,18 +61,18 @@ parser.onOpenSegment = (segment: string): void => {
   // Started a new segment.
   elements = [];
   result.push({ name: segment, elements: elements });
-});
+};
 
 parser.onElement = (): void => {
   // Parsed a new element.
   components = [];
   elements.push(components);
-});
+};
 
 parser.onComponent = (value: string): void => {
   // Got a new component.
   components.push(value);
-});
+};
 
 // by default the tokenizer of the parser will use UNOA charset
 // if characters outside of those defined in the UNOA charset should be used
@@ -90,12 +90,13 @@ or more streamlined using the `Reader` utility class
 ```typescript
 import { Reader, ResultType } from "ts-edifact";
 
-const document: string = ...;
-const specDir: string = ...;
+const document: string = "...";
+const specDir: string = "...";
 
 const reader: Reader = new Reader(specDir);
 const result: ResultType[] = reader.parse(document);
-...
+
+// ...
 ```
 
 or if a custom set of segment- and element definitions should be used
@@ -106,18 +107,32 @@ import { Reader, ResultType, Dictionary, SegmentEntry, ElementEntry } from "ts-e
 import * as segmentsData from ".../segments.json";
 import * as elementsData from ".../elements.json";
 
-const document: string = ...;
-const specDir: string = ...;
+const document: string = "...";
+const specDir: string = "...";
 
 const segments: Dictionary<SegmentEntry> = new Dictionary<SegmentEntry>(segmentsData);
-const elements: Dictionary<ElementEntry> = new Dictionary<ElmentEntry>(elementsData);
+const elements: Dictionary<ElementEntry> = new Dictionary<ElementEntry>(elementsData);
 
 const reader: Reader = new Reader(specDir);
 reader.define(segments);
 reader.define(elements);
 
 const result: ResultType[] = reader.parse(document);
-...
+// ...
+```
+
+Finaly, you can get the interchange (see [InterchangeBuilder](#interchangebuilder))
+
+```typescript
+import { Separators, EdifactSeparatorsBuilder, InterchangeBuilder, Edifact } from "ts-edifact";
+
+// ...
+
+const separators: Separators = new EdifactSeparatorsBuilder().build();
+
+const builder: InterchangeBuilder = new InterchangeBuilder(result, separators, "./definitions/");
+
+const interchange: Edifact = builder.interchange;
 ```
 
 ## Installation
@@ -155,7 +170,9 @@ Definitions can be provided to describe the structure of segments and elements. 
 }
 ```
 
-A corresponding definition from the UN/EDIFACT `D01A` spec for the above mentioned `BGM` segment can be seen following [this link](http://www.unece.org/trade/untdid/d01a/trsd/trsdbgm.htm).
+A corresponding definition from the UN/EDIFACT `D01A` spec for the above mentioned `BGM` segment can be seen following [this link](https://service.unece.org/trade/untdid/d01a/trsd/trsdbgm.htm).
+
+Note: It may also help to use the archives to navigate the older version of unece.org using [this link](https://web.archive.org/web/20121213113252/http://www.unece.org/trade/untdid).
 
 The `requires` property indicates the number of elements which are required to obtain a valid segment. The `elements` array contains the names of the elements which should be provided. Definitions can also be provided for these elements:
 
@@ -174,31 +191,32 @@ The `requires` property indicates the number of elements which are required to o
 
 An incomplete set of D01B definition files can be found in the [`src/messageSpec`](src/messageSpec/) folder. The `*.struct.json` files contain the general structure definition of an Edifact message, i.e. `INVOIC.struct.json` contains the message structure specification of a `D01B` Edifact invoice, while `*.segments.json` contain the respective admissible segments of the acutal processed message type and the `*.elements.json` contain the respective component definitions of elements used by segments.
 
-As of version `0.0.7` such definition files can be generated via the [`UNECEMessageStructureParser`](src/edi/messageStructureParser.ts) class in case the definition is available online at the [unece.org](https://www.unece.org) page. This parser will generate a `EdifactMessageSpecification` object structure that holds the actual message type structe definition as well as the segment- and element tables needed to validate the document to process.
+As of version `0.0.7` such definition files can be generated via the [`UNECEMessageStructureParser`](src/edi/messageStructureParser.ts) class in case the definition is available online at the [unece.org](https://service.unece.org) page. This parser will generate a `EdifactMessageSpecification` object structure that holds the actual message type structe definition as well as the segment- and element tables needed to validate the document to process.
 
 The `persist` utility function of the `src/util` class allows to persist the generated definitions to files which can be used onwards.
 
 ```typescript
-import { MessageStructureParser, UNECEMessageStructureParser } from "ts-edifact";
+import { UNECEMessageStructureParser } from "ts-edifact";
+import { UNECELegacyMessageStructureParser } from "ts-edifact/lib/edi/legacyMessageStructureParser";
+import { EdifactMessageSpecification, MessageStructureParser } from "ts-edifact/lib/edi/messageStructureParser";
 import { persist } from "ts-edifact/lib/util";
 
-...
+const legacy = ["93a", "94a", "94b", "95a", "95b", "96a", "96b", "97a", "97b", "98a", "98b", "99a"];
 
-function storeSpecFiles(specDir: string, type: string, version: string, revision: string): Promise<...> {
-    const structureParser: MessageStructureParser = new UNECEMessageStructureParser(version + revision, type);
-    return loadTypeSpec()
-      .then((response: EdifactMessageSpecification) => {
-          // store downloaded and parsed definition files to the specified directory
-          persist(response, specDir));
+async function storeSpecFiles(specDir: string, type: string, version: string, revision: string): Promise<void> {
+    const structureParser: MessageStructureParser = legacy.includes(revision)
+        ? new UNECELegacyMessageStructureParser(version + revision, type) // You can use legacy for the oldest versions
+        : new UNECEMessageStructureParser(version + revision, type);
 
-          ... // some other work
-      }
-      .catch((error: Error) => handle(error));
+    const response: EdifactMessageSpecification = await structureParser.loadTypeSpec();
+
+    persist(response, specDir);
 }
+    
+// ...
 
-...
 await storeSpecFiles("/home/SomeUser/edifact", "invoic", "d", "01b")
-    .then(...);
+    .then(() => console.log("Downloaded"));
 ```
 
 On using the `Reader` class it will attempt to read such specification files from either the provided directory or, if none was provided, it will try to read such definition files from the local directory. The `*.segments.json` and `*.elements.json` files are used during parsing time of the Edifact document to validate that only admissible values are provided for the respective segments/elements. By default, the `ValidatorImpl` class will ignore any unknown segments or element definitions found. If a strict validation should be performed, that throws an error in case an unknown segment or element is contained within the document the validator needs to be initialized with the optional `throwOnMissingDefinitions` parameter set to true.
@@ -331,13 +349,13 @@ It will attempt to use the specific message structure definition for the concret
 The constructuro expects, besides the parsing result of the Edifact document a base path where the Edifact message structure definition files are located. An incomplete list can be found using the `./node_modules/ts-edifact/lib/messages/` base path.
 
 ```typescript
-new InterchangeBuilder(parsingResult: ResultType[], basePath: string);
+new InterchangeBuilder(parsingResult: ResultType[], separators: Separators, basePath: string);
 ```
 
 <a name="UNECEMessageStructureParser"></a>
 ### UNECEMessageStructureParser
 
-*Since `v0.0.7`*: This class will parse the [unece.org](https://www.unece.org) Website in order to generate message structure definition as well as segment- and element definitions for a requested message type.
+*Since `v0.0.7`*: This class will parse the [unece.org](https://service.unece.org) Website in order to generate message structure definition as well as segment- and element definitions for a requested message type.
 
 ```typescript
 new UNECEmessageStructureParser(version: string, type: string);
